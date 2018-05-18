@@ -2,6 +2,14 @@ import lxml.html as H
 import requests
 from db.DBUtils import *
 import json
+import re
+import uuid
+
+# 爬取中国蔬菜网 http://www.vegnet.com.cn/
+
+###########################################################################
+# Imitating browser behavior
+###########################################################################
 
 session = requests.Session()
 session.cookies['__cfduid'] = 'd9cd2186347d262c5799db11bf31669ce1525154073'
@@ -14,6 +22,17 @@ headers = {
 def get_response(url):
     response = session.get(url, headers=headers)
     response.encoding = 'utf8'
+
+    # store source into file
+    reg = re.search(r'List.*\.', url)
+    reg2 = re.search(r'\d*$', url)
+    if reg is None:
+        uuid_str = str(uuid.uuid4())
+        filename = "index" + uuid_str + ".html"
+    else:
+        filename = reg2.group() + reg.group() + "html"
+    store_into_file(response.text, filename)
+
     return response
 
 
@@ -30,9 +49,11 @@ def get_json(url):
 
 
 def get_url(provence_id: str, index: int, market_id: int):
-    return 'http://www.vegnet.com.cn/Price/List_ar' + provence_id + '_p' + str(index) + '.html?marketID=' + str(market_id)
+    return 'http://www.vegnet.com.cn/Price/List_ar' + provence_id + '_p' + str(index) + '.html?marketID=' + str(
+        market_id)
 
 
+# 读取分页数据
 def read_page(provence_id, market_id):
     pages_index = 1
     flag = True
@@ -46,6 +67,7 @@ def read_page(provence_id, market_id):
         pages_index += 1
 
 
+# 判断是否是最后一页
 def is_last_page(document):
     mark = len(document.xpath("/html/body/div/div[2]/div[2]/div[2]/text()")) - 1
     try:
@@ -60,6 +82,10 @@ def is_last_page(document):
 def get_rows_len(document):
     return len(document.xpath('/html/body/div/div[2]/div[2]/div[1]/p'))
 
+
+#####################################################################
+# read rows from table
+#####################################################################
 
 def read_rows(document, rows_len=0):
     rows = []
@@ -76,21 +102,33 @@ def read_rows(document, rows_len=0):
     return rows
 
 
+#####################################################################################################################
 # store into MySQL
+#####################################################################################################################
 def store_into_mysql(rows: list):
     conn = get_instance()
     cursor = conn.cursor()
     for row in rows:
         cursor.execute('''insert into crops_area(varieties,\
         area,low_price,high_price,avg_price,mea_unit,date_time) values(\
-        "%s","%s","%s","%s","%s","%s","%s")''' % (row.get("varieties"), row.get("area"),
-                                                  row.get("low_price"), row.get("high_price"), row.get("avg_price"),
-                                                  row.get("mea_unit"), row.get("date_time")))
+        "%s","%s","%s","%s","%s","%s","%s")'''
+                       % (row.get("varieties"), row.get("area"),
+                          row.get("low_price"), row.get("high_price"), row.get("avg_price"),
+                          row.get("mea_unit"), row.get("date_time")))
     conn.commit()
 
 
+#####################################################################################################################
+# store into file
+#####################################################################################################################
+def store_into_file(content: str, filename: str):
+    file = open("sourcefile/crops_area/" + filename, "w", encoding='utf-8')
+    file.write(content)
+    file.close()
+
+
 #######################################################################################################################
-# read market
+# 读取省内的所有市场信息
 #######################################################################################################################
 
 def get_province():
@@ -107,6 +145,7 @@ def get_province():
     return pro_info
 
 
+# 获取市场url
 def get_market_url(area_id):
     return 'http://www.vegnet.com.cn/Market/GetMarketByAreaID?areaID=' + area_id
 
@@ -123,6 +162,7 @@ def get_info():
         markets.append(market)
     for index in markets:
         read_page(pro_info["广东省"], index["MarketID"])
+
 
 if __name__ == '__main__':
     pass

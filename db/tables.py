@@ -29,8 +29,27 @@ def create_table_crops_area(conn):
             ''')
 
 
+def create_table_district(conn):
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS district")
+    cursor.execute('''create table district(\
+            id int auto_increment primary key,\
+            provence varchar(30) not null,\
+            city varchar(30) not null,\
+            district varchar(50) not null,\
+            datetime varchar(30) not null\
+            )
+            default charset = utf8
+            ''')
+
+
 def create_tables():
     conn = get_instance()
-    create_table_crops(conn)
+    # create_table_crops(conn)
     create_table_crops_area(conn)
+    # create_table_district(conn)
     close(conn)
+
+
+if __name__== "__main__":
+    create_table_district()
